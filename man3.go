@@ -121,7 +121,7 @@ func doPackage(m *M) {
 		if l > 0 {
 			m.PP()
 
-			genDoc(m.F, true, t.Doc)
+			genDoc(m.F, t.Doc)
 
 			Values(m, t.Consts)
 			Values(m, t.Vars)
@@ -135,23 +135,18 @@ func doPackage(m *M) {
 	m.do_see_also()
 }
 
-func genDoc(m *F, mode bool, s string) {
+func genDoc(m *F, s string) {
 	if len(s) == 0 {
 		return
 	}
-	pas := paragraphs(s)
-	if mode {
-		m.paras(pas)
-	} else {
-		m.iparas(pas)
-	}
+	m.paras(paragraphs(s))
 }
 
 //BUG(jmf): does not render RHS of consts or vars
 
 func Values(m *M, V []*doc.ValueDoc) {
 	for i, v := range V {
-		genDoc(m.F, true, v.Doc)
+		genDoc(m.F, v.Doc)
 		m.PP()
 		m.WriteString(".B ")
 		d := v.Decl
@@ -217,7 +212,7 @@ func Funcs(m *F, F []*doc.FuncDoc) {
 		m.br()
 		if len(f.Doc) > 0 {
 			m.PP()
-			genDoc(m, true, f.Doc)
+			genDoc(m, f.Doc)
 		}
 	}
 }

@@ -46,13 +46,20 @@ func lines(p []byte) [][]byte {
 	return out
 }
 
-func indents(p []byte) ([][]byte, []int) {
+func empty(line []byte) bool {
+	return len(bytes.TrimSpace(line)) == 0
+}
+
+func indents(p []byte) ([][]byte, []int, bool) {
 	lines := lines(p)
 	indents := make([]int, len(lines))
 	tab := false
 	//determine indent mode. Mixed indents would screw this up but no one likes
 	//people who mix indents, anyway
 	for _, line := range lines {
+		if empty(line) {
+			continue
+		}
 		if line[0] == '\t' {
 			tab = true
 			break
@@ -87,40 +94,60 @@ func indents(p []byte) ([][]byte, []int) {
 			}
 		}
 	}
-	return lines, indents
+	return lines, indents, tab
 }
 
 func minin(indents []int) int {
 	min := indents[0]
 	for _, in := range indents[1:] {
-		if in < min {
+		if in != -1 && in < min {
 			min = in
 		}
 	}
 	return min
 }
 
-var prx = RX("\n" + SP + "*\n")
+func strip(line []byte, ins int, tab bool) []byte {
+	if ins <= 0 {
+		return line
+	}
+	if !tab {
+		ins = 4*ins - 1
+	}
+	return line[ins-1:]
+}
 
 func paragraphs(in string) [][]byte {
-	ps := inverseMatch(prx, []byte(in))
-	out := newColl()
-	for _, p := range ps {
-		lines, indents := indents(p)
-		min := minin(indents)
-		for i, ln := 0, len(lines); i < ln; {
-			acc := newColl()
-			if indents[i] == min {
-				for ; i < ln && indents[i] == min; i++ {
-					acc.push(bytes.TrimLeftFunc(lines[i], unicode.IsSpace))
-				}
-			} else {
-				for ; i < ln && indents[i] > min; i++ {
-					acc.push(lines[i])
-				}
-			}
-			out.push(acc.join())
+	lines, indents, tab := indents([]byte(in))
+	for i, line := range lines {
+		if empty(line) {
+			indents[i] = -1
 		}
+	}
+	min := minin(indents)
+	for i, line := range lines {
+		in := indents[i]
+		if in == -1 {
+			continue
+		}
+		lines[i] = strip(line, min, tab)
+		indents[i] -= min
+	}
+	out := newColl()
+	ln := len(lines)
+	for i := 0; i < ln; i++ {
+		acc := newColl()
+		for ; i < ln && indents[i] == -1; i++ {}
+		if indents[i] == 0 {
+			for ; i < ln && indents[i] != -1 && indents[i] == 0; i++ {
+				acc.push(lines[i])
+			}
+		} else {
+			for ; i < ln && indents[i] != -1 && indents[i] > 0; i++ {
+				acc.push(lines[i])
+			}
+		}
+		out.push(acc.join())
 	}
 	return out.data()
 }
@@ -140,48 +167,6 @@ func sentences(in []byte) [][]byte {
 	return out
 }
 
-func acronymp(a []byte) bool {
-	if len(a) < 3 {
-		return false
-	}
-	runes := bytes.Runes(a)
-	end := len(runes) - 1
-	for _, rune := range runes[:end] {
-		if !(rune == int('.') || rune == int('-') || unicode.IsUpper(rune)) {
-			return false
-		}
-	}
-	last := runes[end]
-	if !unicode.IsUpper(last) {
-		switch last {
-		default:
-			return false
-		case int('.'), int('!'), int('?'), int(','), int(';'), int(':'):
-			return true
-		}
-	}
-	return true
-}
-
-const pe = "(" + NS + "|\\\\ |\\\\\t)+"
-
-var pathrx = RX("/?" + pe + "/(" + pe + "/)*(" + pe + ")?")
-
-func pathp(word []byte) bool {
-	if !pathrx.Match(word) {
-		return false
-	}
-	last := word[0] == '/'
-	for _, c := range word[1:] {
-		cur := c == '/'
-		if cur && last {
-			return false
-		}
-		last = cur
-	}
-	return true
-}
-
 var wrx = RX("[ \n\t]")
 
 func words(sentence []byte) []byte {
@@ -198,11 +183,6 @@ func words(sentence []byte) []byte {
 			continue
 		}
 		switch {
-		case acronymp(word):
-			nl()
-			buf.WriteString(".SM ")
-			buf.Write(word)
-			nl()
 		case inlinerefrx.Match(word): //defined above find_refs()
 			nl()
 			buf.WriteString(".BR ")
@@ -210,11 +190,6 @@ func words(sentence []byte) []byte {
 			buf.Write(escape(word[:piv]))
 			buf.WriteByte(' ')
 			buf.Write(word[piv:])
-			nl()
-		case pathp(word):
-			nl()
-			buf.WriteString(".I ")
-			buf.Write(escape(word))
 			nl()
 		default:
 			buf.Write(escape(word))
@@ -276,7 +251,7 @@ func sections(paras [][]byte) []*section {
 
 //return 1 for regular PP, 0 for IP, -1 for code RS/RE fun
 func pkind(p []byte) (int, [][]byte, []int) {
-	lines, indents := indents(p)
+	lines, indents, _ := indents(p)
 	min := minin(indents)
 	if len(lines) == 1 {
 		return 1, nil, nil

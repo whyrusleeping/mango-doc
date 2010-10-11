@@ -1,6 +1,6 @@
 // Create a man page from a Go package's source file's documentation.
 //
-// Mango generates section 1 or section 3 man pages, if the Go source package is
+// Mango 'generates section 1 or section 3 man pages, if the Go source package is
 //or is not main, respectively. Information is extracted automatically from the
 //package's comments and AST, with few exceptions.
 //

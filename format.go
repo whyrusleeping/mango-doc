@@ -56,9 +56,14 @@ func escape(in []byte) []byte {
 			continue
 		case int('\\'):
 			buf.WriteString("\\e")
+			continue
 		case int('-'):
 			buf.WriteByte('\\')
 		case int('.'):
+			if last == 0 || unicode.IsSpace(last) {
+				buf.WriteByte('\\')
+			}
+		case int('\''):
 			if last == 0 || unicode.IsSpace(last) {
 				buf.WriteByte('\\')
 			}
@@ -94,15 +99,15 @@ func NewManPage(pkg *ast.Package, docs *doc.PackageDoc) *M {
 
 	//break up the package document, extract a short description
 	pas := paragraphs(docs.Doc)
-	if len(pas) == 0 {
-		fatal("No package documentation")
-	}
-	sents := sentences(pas[0])
-	d := sents[0]
-	//if the first paragraph is one sentence, only use it in description;
-	//otherwise we leave it where it is to repeat.
-	if len(sents) == 1 {
-		pas = pas[1:]
+	var d []byte
+	if len(pas) > 0 {
+		sents := sentences(pas[0])
+		d = sents[0]
+		//if the first paragraph is one sentence, only use it in description;
+		//otherwise we leave it where it is to repeat.
+		if len(sents) == 1 {
+			pas = pas[1:]
+		}
 	}
 	m := &M{
 		Formatter(),
@@ -250,8 +255,11 @@ func (m *M) do_header(kind string) {
 func (m *M) do_name() {
 	m.section("NAME")
 	m.WriteString(m.name)
-	m.WriteString(" \\- ")
-	m.Write(bytes.TrimSpace(m.descr)) //first sentence
+	s := bytes.TrimSpace(m.descr)
+	if len(s) > 0 {
+		m.WriteString(" \\- ")
+		m.Write(s) //first sentence
+	}
 }
 
 func (m *M) do_description() {

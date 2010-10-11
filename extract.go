@@ -110,8 +110,8 @@ func paragraphs(in string) [][]byte {
 		min := minin(indents)
 		for i, ln := 0, len(lines); i < ln; {
 			acc := newColl()
-			if indents[i] == min /*|| (i == 0 && ln > 1 && indents[1] == min)*/ {
-				for ; i < ln && ( /*i == 0 ||*/ indents[i] == min); i++ {
+			if indents[i] == min {
+				for ; i < ln && indents[i] == min; i++ {
 					acc.push(bytes.TrimLeftFunc(lines[i], unicode.IsSpace))
 				}
 			} else {
@@ -298,10 +298,6 @@ func pkind(p []byte) (int, [][]byte, []int) {
 	if unindented == 0 && len(lines) != 1 {
 		return 1, nil, nil
 	}
-	//none of the indents differ, indented paragraph
-	/*if !diff {
-		return 0, nil, nil
-	}*/
 	//otherwise, it's 'code' because it has differing indents
 	return -1, lines, indents
 }

@@ -147,6 +147,8 @@ func genDoc(m *F, mode bool, s string) {
 	}
 }
 
+//BUG(jmf): does not render RHS of consts or vars
+
 func Values(m *M, V []*doc.ValueDoc) {
 	for i, v := range V {
 		genDoc(m.F, true, v.Doc)
@@ -168,6 +170,9 @@ func Values(m *M, V []*doc.ValueDoc) {
 			m.WriteString(".B ")
 			vs := sp.(*ast.ValueSpec)
 			for k, n := range vs.Names {
+				if !ast.IsExported(n.Name) { //hack around go/doc(3) bug
+					continue
+				}
 				m.WriteString(n.Name)
 				if k != len(vs.Names)-1 {
 					m.WriteString(", ")

@@ -107,65 +107,78 @@ func (m *F) section(name string) {
 	m.WriteString("\"\n")
 }
 
+var wrx = RX("[ \n\t]")
+
+func (m *F) words(sentence []byte) {
+	for _, word := range inverseMatch(wrx, bytes.TrimSpace(sentence)) {
+		word = bytes.TrimSpace(word)
+		if len(word) == 0 {
+			continue
+		}
+		switch {
+		case inlinerefrx.Match(word): //defined above find_refs()
+			m.nl()
+			m.WriteString(".BR ")
+			piv := bytes.IndexByte(word, '(')
+			m.Write(escape(word[:piv]))
+			m.WriteByte(' ')
+			m.Write(word[piv:])
+			m.nl()
+		default:
+			m.Write(escape(word))
+			m.WriteByte(' ')
+		}
+	}
+}
+
 func (m *F) text(p []byte) {
 	for _, s := range sentences(p) {
 		m.nl()
-		m.Write(words(s))
+		m.words(s)
 	}
 }
 
-func (m *F) paras(ps [][]byte) {
-	for i, p := range ps {
+func (m *F) paras(ps *vector.Vector) {
+	for i, P := range *ps {
 		if i != 0 {
 			m.PP()
 		}
-		if p[0] == ' ' || p[0] == '\t' {
-			l, i, _ := indents(p)
-			m.code(l, i)
-		} else {
-			m.text(p)
-		}
-	}
-}
-
-//BUG(jmf): code formatter could balk on double spaced code or mishandle
-//complex indentation
-
-func (m *F) code(lines [][]byte, indents []int) {
-	min := minin(indents)
-	for i, in := range indents {
-		indents[i] = in - min
-	}
-	last, cnt := 0, 0
-	m.WriteString(".RS")
-	for i, line := range lines {
-		m.nl()
-		line = bytes.TrimSpace(line)
-		in := indents[i]
-		if len(line) == 0 {
-			m.WriteString(".sp\n")
-			continue
-		}
-		if last < in {
-			cnt++
-			m.WriteString(".RS\n")
-		}
-		if last > in {
-			cnt--
-			if cnt < 0 {
-				fatal("Impossible indentation")
+		switch p := P.(type) {
+		case [][]byte:
+			for _, s := range p {
+				m.nl()
+				m.words(s)
 			}
-			m.WriteString(".RE\n")
+		case []*loc:
+			last, depth := 0, 0
+			for j, loc := range p {
+				m.nl()
+				line, in := loc.line, loc.indent
+				if in == -1 {
+					m.WriteString(".sp\n")
+					continue
+				} else if last < in {
+					depth++
+					m.WriteString(".RS\n")
+				} else if last > in {
+					depth--
+					if depth < 0 {
+						fatal("Impossible indentation.")
+					}
+					m.WriteString(".RE\n")
+				}
+				m.Write(escape(line))
+				m.nl()
+				if j != len(p)-1 {
+					m.WriteString(".sp 0\n")
+				}
+				last = in
+			}
+			//make sure we unindent as much as we've indented
+			for ; depth > 0; depth-- {
+				m.nl()
+				m.WriteString(".RE")
+			}
 		}
-		m.Write(escape(line))
-		m.nl()
-		if i != len(lines)-1 {
-			m.WriteString(".sp 0\n")
-		}
-		last = in
-	}
-	//make sure indentation balances, in case someone used python code
-	for cnt++; cnt > 0; cnt-- {
-		m.WriteString("\n.RE")
 	}
 }

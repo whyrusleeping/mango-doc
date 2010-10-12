@@ -3,6 +3,7 @@ package main
 import (
 	"unicode"
 	"bytes"
+	"container/vector"
 )
 
 type coll [][]byte
@@ -36,6 +37,11 @@ func (c *coll) join() []byte {
 	return bytes.Join(c.data(), nil)
 }
 
+type loc struct {
+	indent int
+	line []byte
+}
+
 var lrx = RX("\n")
 
 func lines(p []byte) [][]byte {
@@ -47,109 +53,80 @@ func lines(p []byte) [][]byte {
 }
 
 func empty(line []byte) bool {
-	return len(bytes.TrimSpace(line)) == 0
+	return len(line) == 0 || len(bytes.TrimSpace(line)) == 0
 }
 
-func indents(p []byte) ([][]byte, []int, bool) {
-	lines := lines(p)
-	indents := make([]int, len(lines))
-	tab := false
-	//determine indent mode. Mixed indents would screw this up but no one likes
-	//people who mix indents, anyway
-	for _, line := range lines {
+func locify(ls [][]byte) []*loc {
+	if len(ls) == 0 {
+		return nil
+	}
+	ret := make([]*loc, len(ls))
+	min := 1000
+	for i, line := range ls {
+		ind := 0
 		if empty(line) {
+			ret[i] = &loc{-1, nil}
 			continue
 		}
-		if line[0] == '\t' {
-			tab = true
-			break
+		tab := line[0] == '\t' || !bytes.HasPrefix(line, []byte("   "))
+		comp := byte(' ')
+		if tab {
+			comp = byte('\t')
 		}
-		//only count as indent if there are at least 3 spaces (go/doc cuts 1 sp)
-		if bytes.HasPrefix(line, []byte("   ")) {
-			break
+		for ; ind < len(line) && line[ind] == comp; ind++ {}
+		if !tab {
+			//go/doc trims first space and we assume 4sp = 1tb
+			ind = (ind + 1) / 4
+		}
+		if ind < min {
+			min = ind
+		}
+		ret[i] = &loc{ind, bytes.TrimLeftFunc(line, unicode.IsSpace)}
+	}
+	//normalize indents
+	for i := range ret {
+		if ret[i].indent != -1 {
+			ret[i].indent -= min
 		}
 	}
-	//count indents
-	for lno, line := range lines {
-		i := 0
-		for ; i < len(line); i++ {
-			if tab {
-				if line[i] != '\t' {
-					break
-				}
-			} else {
-				if line[i] != ' ' {
-					break
-				}
-			}
-		}
-		indents[lno] = i
-	}
-	if !tab {
-		//assume 4 sp = 1 tab
-		for i, in := range indents {
-			//we need to add 1 since go/doc strips first space
-			if in != 0 {
-				indents[i] = (in + 1) % 4
-			}
-		}
-	}
-	return lines, indents, tab
+	return ret
 }
 
-func minin(indents []int) int {
-	min := indents[0]
-	for _, in := range indents[1:] {
-		if in != -1 && in < min {
-			min = in
-		}
+func partition(locs []*loc) *vector.Vector {
+	ln := len(locs)
+	if ln == 0 {
+		return nil
 	}
-	return min
-}
-
-func strip(line []byte, ins int, tab bool) []byte {
-	if ins <= 0 {
-		return line
-	}
-	if !tab {
-		ins = 4*ins - 1
-	}
-	return line[ins-1:]
-}
-
-func paragraphs(in string) [][]byte {
-	lines, indents, tab := indents([]byte(in))
-	for i, line := range lines {
-		if empty(line) {
-			indents[i] = -1
-		}
-	}
-	min := minin(indents)
-	for i, line := range lines {
-		in := indents[i]
-		if in == -1 {
-			continue
-		}
-		lines[i] = strip(line, min, tab)
-		indents[i] -= min
-	}
-	out := newColl()
-	ln := len(lines)
-	for i := 0; i < ln; i++ {
-		acc := newColl()
-		for ; i < ln && indents[i] == -1; i++ {}
-		if indents[i] == 0 {
-			for ; i < ln && indents[i] != -1 && indents[i] == 0; i++ {
-				acc.push(lines[i])
+	ret := &vector.Vector{}
+	for i := 0; i < ln; {
+		//skip blank lines
+		for ; i < ln && locs[i].indent == -1; i++ {}
+		//select mode
+		if locs[i].indent == 0 {
+			//paragraph mode
+			acc := newColl()
+			for ; i < ln && locs[i].indent == 0; i++ {
+				acc.push(locs[i].line)
 			}
+			ret.Push(sentences(acc.join()))
 		} else {
-			for ; i < ln && indents[i] != -1 && indents[i] > 0; i++ {
-				acc.push(lines[i])
+			//"code" mode
+			start := i
+			for ; i < ln && locs[i].indent != 0; i++ {
+				locs[i].line = bytes.TrimSpace(locs[i].line)
+			}
+			//TODO should cleave off any extraneous blank lines at the end
+			end := i
+			if end - start > 0 {
+				ret.Push(locs[start:end])
 			}
 		}
-		out.push(acc.join())
 	}
-	return out.data()
+	return ret
+}
+
+func unstring(in string) *vector.Vector {
+	return partition(locify(lines([]byte(in))))
 }
 
 var srx = RX(NS + "[.!?][ \n\t]+")
@@ -167,50 +144,17 @@ func sentences(in []byte) [][]byte {
 	return out
 }
 
-var wrx = RX("[ \n\t]")
-
-func words(sentence []byte) []byte {
-	var buf bytes.Buffer
-	ms := inverseMatch(wrx, sentence)
-	nl := func() {
-		if x := buf.Len(); x != 0 && x != len(ms) && buf.Bytes()[x-1] != '\n' {
-			buf.WriteByte('\n')
-		}
-	}
-	for _, word := range ms {
-		word = bytes.TrimSpace(word)
-		if len(word) == 0 {
-			continue
-		}
-		switch {
-		case inlinerefrx.Match(word): //defined above find_refs()
-			nl()
-			buf.WriteString(".BR ")
-			piv := bytes.IndexByte(word, '(')
-			buf.Write(escape(word[:piv]))
-			buf.WriteByte(' ')
-			buf.Write(word[piv:])
-			nl()
-		default:
-			buf.Write(escape(word))
-			buf.WriteByte(' ')
-		}
-	}
-	return bytes.TrimSpace(buf.Bytes())
-}
-
 type section struct {
 	name  string
-	paras [][]byte
+	paras *vector.Vector // [][]byte or []*loc
 }
 
-func isSecHdr(s []byte) bool {
-	//paragraph of a single line
-	if bytes.IndexByte(s, '\n') != -1 {
+func isSecHdr(s interface{}) bool {
+	p, ok := s.([][]byte)
+	if !ok || len(p) != 1 {
 		return false
 	}
-	//all of whose words are uppercase
-	for _, rune := range bytes.Runes(s) {
+	for _, rune := range bytes.Runes(p[0]) {
 		if !(unicode.IsUpper(rune) || unicode.IsSpace(rune)) {
 			return false
 		}
@@ -218,61 +162,36 @@ func isSecHdr(s []byte) bool {
 	return true
 }
 
-func sections(paras [][]byte) []*section {
-	numsec, end := 1, 0
-	//see if there are any other sections
-	for i, v := range paras {
+func sections(src *vector.Vector) []*section {
+	num, end := 1, 0
+	//check for other sections
+	for i, v := range *src {
 		if isSecHdr(v) {
-			numsec++
+			num++
+			//mark first sec header
 			if end == 0 {
 				end = i
 			}
 		}
 	}
-	//no supplementarty sections, return just the default section
 	if end == 0 {
-		return []*section{&section{"", paras}}
+		return []*section{&section{"", src}}
 	}
-	//make accumulator and store default section
-	out := make([]*section, numsec)
-	out[0] = &section{"", paras[:end]}
+	secs := make([]*section, num)
+	secs[0] = &section{"", src.Slice(0, end)}
 	start := end
-	//separate out supplementary sections
-	for i := 1; i < numsec; i++ {
-		name := string(paras[start])
-		end = start + 1
-		for ; end < len(paras) && !isSecHdr(paras[end]); end++ {
+	for i := 1; i < num; i++ {
+		p, ok := src.At(start).([][]byte)
+		if !ok || len(p) > 1 {
+			start++
+			continue
 		}
-		out[i] = &section{name, paras[start+1 : end]}
+		name := string(p[0])
+		start++
+		for end = start; end < src.Len() && !isSecHdr(src.At(end)); end++ {
+		}
+		secs[i] = &section{name, src.Slice(start, end)}
 		start = end
 	}
-	return out
-}
-
-//return 1 for regular PP, 0 for IP, -1 for code RS/RE fun
-func pkind(p []byte) (int, [][]byte, []int) {
-	lines, indents, _ := indents(p)
-	min := minin(indents)
-	if len(lines) == 1 {
-		return 1, nil, nil
-	}
-	//normalize indents
-	for i, in := range indents {
-		indents[i] = in - min
-	}
-	//scan the indents to figure out what kind of scheme they imply
-	unindented := 0
-	last, diff := indents[1], false
-	for _, in := range indents[1:] {
-		//once diff has been set, we want it to stay that way
-		diff = !diff && (last != in)
-		last = in
-		unindented += in
-	}
-	//only first line of many was indented, treat as normal paragraph
-	if unindented == 0 && len(lines) != 1 {
-		return 1, nil, nil
-	}
-	//otherwise, it's 'code' because it has differing indents
-	return -1, lines, indents
+	return secs
 }

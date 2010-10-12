@@ -104,6 +104,10 @@ func main() {
 		}
 		fallthrough
 	default:
+		stderr(dir + " contains the following packages:")
+		for k := range pkgs {
+			stderr("\t" + k)
+		}
 		fatal("Don't know how to handle a directory with multiple packages")
 	}
 	var pkg *ast.Package

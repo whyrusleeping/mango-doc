@@ -17,8 +17,7 @@ func doPackage(m *M) {
 
 	//do synopsis
 	m.section("SYNOPSIS")
-	m.WriteString(".B ")
-	m.WriteString("import \\*(lq")
+	m.WriteString(".B import \\*(lq")
 	//TODO insert import path, in the meantime:
 	m.WriteString(m.name)
 	m.WriteString("\\(rq\n.sp")
@@ -139,10 +138,10 @@ func genDoc(m *F, s string) {
 	if len(s) == 0 {
 		return
 	}
-	m.paras(paragraphs(s))
+	m.paras(unstring(s))
 }
 
-//BUG(jmf): does not render RHS of consts or vars
+//BUG(jmf): Does not render RHS of consts or vars for section 3.
 
 func Values(m *M, V []*doc.ValueDoc) {
 	for i, v := range V {
@@ -369,7 +368,6 @@ func methods(m *F, fl *ast.FieldList, inline bool) {
 	if fl == nil || len(fl.List) == 0 {
 		return
 	}
-	//str := writer(m, inline)
 	for _, f := range fl.List {
 		if !inline {
 			m.nl()
@@ -384,7 +382,6 @@ func methods(m *F, fl *ast.FieldList, inline bool) {
 		if inline {
 			m.WriteString("; ")
 		} else {
-			//m.br()
 			m.nl()
 			m.WriteString(".sp 0\n")
 		}

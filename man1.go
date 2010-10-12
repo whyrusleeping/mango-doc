@@ -7,11 +7,6 @@ import (
 	"go/ast"
 )
 
-type flags struct {
-	usage string
-	flags [][4][]byte //varname, name, default, help
-}
-
 func doCommand(m *M) {
 	m.sec = "1"
 
@@ -102,6 +97,11 @@ func grep_name(p *ast.Package) string {
 //allow addition of more option info with a line in the comments above main
 //matching the below regex
 var usrx = RX("^[ \t]*Usage:([ ]+%name)?[ ]+(%flags?[ ]+)?")
+
+type flags struct {
+	usage string
+	flags [][4][]byte //varname, name, default, help
+}
 
 func grep_flags(m *M) flags {
 	out := flags{"", make([][4][]byte, 0, 8)}

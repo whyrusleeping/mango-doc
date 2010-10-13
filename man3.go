@@ -19,9 +19,17 @@ func doPackage(m *M) {
 
 	//do synopsis
 	m.section("SYNOPSIS")
-	m.WriteString(".B import \\*(lq")
-	//TODO insert import path, in the meantime:
-	m.WriteString(m.name)
+	m.WriteString(".B import ")
+	if *import_path != "" {
+		m.WriteString(m.name)
+		m.WriteByte(' ')
+	}
+	m.WriteString("\\*(lq")
+	if *import_path != "" {
+		m.WriteString(*import_path)
+	} else {
+		m.WriteString(m.name)
+	}
 	m.WriteString("\\(rq\n.sp")
 
 	//build TOC
@@ -71,7 +79,7 @@ func doPackage(m *M) {
 	}
 
 	m.do_description()
-	//TODO any special sections to order here?
+	m.user_sections("DIAGNOSTICS", "ENVIRONMENT", "FILES", "NOTES")
 	m.remaining_user_sections()
 
 	if len(m.docs.Consts) > 0 {
@@ -302,12 +310,12 @@ func fields(mr *F, fl *ast.FieldList, sep string) (unex bool) {
 		} else if len(f.Names) == 0 {
 			var v ast.Expr
 			switch t := f.Type.(type) {
-				case *ast.Ident:
-					v = t
-				case *ast.SelectorExpr:
-					v = t.X
-				case *ast.StarExpr:
-					v = t.X
+			case *ast.Ident:
+				v = t
+			case *ast.SelectorExpr:
+				v = t.X
+			case *ast.StarExpr:
+				v = t.X
 			}
 			if !ast.IsExported(v.(*ast.Ident).Name) {
 				continue

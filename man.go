@@ -26,7 +26,7 @@ func NewManPage(pkg *ast.Package, docs *doc.PackageDoc) *M {
 	//break up the package document, extract a short description
 	dvec := unstring(docs.Doc)
 	var fs []byte //first sentence.
-	if dvec.Len() > 0 {
+	if dvec != nil && dvec.Len() > 0 {
 		if p, ok := dvec.At(0).([][]byte); ok && len(p) > 0 {
 			fs = p[0]
 			//if the first paragraph is one sentence, only use it in description
@@ -67,6 +67,9 @@ func lit(x interface{}) []byte {
 }
 
 func grep_version(pkg *ast.Package) string {
+	if *version != "" {
+		return *version
+	}
 	for _, file := range pkg.Files {
 		for _, decl := range file.Decls {
 			if g, ok := decl.(*ast.GenDecl); ok {
@@ -157,13 +160,17 @@ func (m *M) do_header(kind string) {
 	if version == "" {
 		version = tm
 	}
-	m.WriteString(fmt.Sprintf("\n.TH \"%s\" %s \"%s\" \"version %s\" \"%s\"",
-		m.name,
-		m.sec,
-		tm,
-		version,
-		kind,
-	))
+	if *manual != "" {
+		kind = *manual
+	}
+	m.WriteString(
+		fmt.Sprintf("\n.TH \"%s\" %s \"%s\" \"version %s\" \"%s\"",
+			m.name,
+			m.sec,
+			tm,
+			version,
+			kind,
+		))
 }
 
 func (m *M) do_name() {
@@ -188,6 +195,7 @@ func (m *M) user_sections(sx ...string) {
 	ns := make([]*section, len(m.sections))
 	n := 0
 	for _, req := range sx {
+		n = 0
 		for _, sc := range m.sections {
 			if sc.name == req {
 				m.section(sc.name)

@@ -45,6 +45,9 @@ type loc struct {
 var lrx = RX("\n")
 
 func lines(p []byte) [][]byte {
+	if len(p) == 0 {
+		return nil
+	}
 	out := inverseMatch(lrx, p)
 	for i := 0; i < len(out); i++ {
 		out[i] = bytes.AddByte(out[i], '\n')
@@ -165,6 +168,9 @@ func isSecHdr(s interface{}) bool {
 }
 
 func sections(src *vector.Vector) []*section {
+	if src == nil {
+		return nil
+	}
 	num, end := 1, 0
 	//check for other sections
 	for i, v := range *src {

@@ -1,6 +1,6 @@
 // Create a man page from a Go package's source file's documentation.
 //
-// Mango 'generates section 1 or section 3 man pages, if the Go source package is
+// Mango generates section 1 or section 3 man pages, if the Go source package is
 //or is not main, respectively. Information is extracted automatically from the
 //package's comments and AST, with few exceptions.
 //
@@ -44,6 +44,19 @@ import (
 	"go/doc"
 )
 
+//See man-pages(7)
+var (
+	import_path = flag.String("import", "",
+		"Specify import path")
+	version = flag.String("version", "",
+		"Specify version")
+	manual = flag.String("manual", "",
+		"Specify the manual: see man-pages(7)")
+	package_name = flag.String("package", "",
+		"Select package to use if there are multiple packages in a directory")
+)
+
+
 func stderr(s interface{}) {
 	fmt.Fprintln(os.Stderr, s)
 }
@@ -51,6 +64,21 @@ func stderr(s interface{}) {
 func fatal(msg interface{}) {
 	stderr(msg)
 	os.Exit(2)
+}
+
+func invalid_flag(s, nm string, flag *string) {
+	if *flag != "" {
+		fatal("The " + nm + " flag does not apply to section " + s + " pages.")
+	}
+}
+
+func lspkgs(dir string, pkgs map[string]*ast.Package) {
+	stderr(dir + " contains the following packages:")
+	for k := range pkgs {
+		stderr("\t" + k)
+	}
+	stderr("Don't know how to handle a directory with multiple packages")
+	fatal("Specify one of the above with -package")
 }
 
 func usage(err interface{}) {
@@ -65,7 +93,7 @@ var pref = strings.HasPrefix
 func filter(fi *os.FileInfo) bool {
 	notdir := !fi.IsDirectory()
 	n := fi.Name
-	gofile := suff(n, ".go") && !suff(n, "_test.go") && !pref(n, "_")
+	gofile := suff(n, ".go") && !suff(n, "_test.go")
 	return notdir && gofile
 }
 
@@ -93,30 +121,31 @@ func main() {
 		fatal("Could not parse package at " + dir)
 	}
 	var xdoc string
+	if d, ok := pkgs["documentation"]; ok {
+		xdoc = doc.NewPackageDoc(d, "").Doc
+		pkgs["documentation"] = nil, false
+	}
 	switch len(pkgs) {
 	case 0:
 		fatal("No packages found at " + dir)
 	case 1:
 		// what we want
-	case 2:
-		//hack around there being a documentation package, part 1
-		if d, ok := pkgs["documentation"]; ok {
-			xdoc = doc.NewPackageDoc(d, "").Doc
-			pkgs["documentation"] = nil, false
-			break
-		}
-		fallthrough
 	default:
-		name := path.Base(dir)
-		if p, ok := pkgs[name]; ok {
-			pkg = p
-			break
+		if *package_name != "" {
+			var ok bool
+			pkg, ok = pkgs[*package_name]
+			if !ok {
+				lspkgs(dir, pkgs)
+			}
+		} else {
+			name := path.Base(dir)
+			if p, ok := pkgs[name]; ok {
+				pkg = p
+				break
+			} else {
+				lspkgs(dir, pkgs)
+			}
 		}
-		stderr(dir + " contains the following packages:")
-		for k := range pkgs {
-			stderr("\t" + k)
-		}
-		fatal("Don't know how to handle a directory with multiple packages")
 	}
 	if pkg == nil {
 		//hack because we don't know or care what the package is
@@ -132,6 +161,7 @@ func main() {
 	}
 	m := NewManPage(pkg, docs)
 	if pkg.Name == "main" {
+		invalid_flag("1", "import", import_path)
 		doCommand(m)
 	} else {
 		doPackage(m)

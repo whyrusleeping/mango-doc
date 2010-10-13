@@ -86,6 +86,8 @@ func main() {
 		}
 	}
 
+	var pkg *ast.Package
+
 	pkgs, err := parser.ParseDir(dir, filter, parser.ParseComments)
 	if err != nil {
 		fatal("Could not parse package at " + dir)
@@ -100,23 +102,27 @@ func main() {
 		//hack around there being a documentation package, part 1
 		if d, ok := pkgs["documentation"]; ok {
 			xdoc = doc.NewPackageDoc(d, "").Doc
+			pkgs["documentation"] = nil, false
 			break
 		}
 		fallthrough
 	default:
+		name := path.Base(dir)
+		if p, ok := pkgs[name]; ok {
+			pkg = p
+			break
+		}
 		stderr(dir + " contains the following packages:")
 		for k := range pkgs {
 			stderr("\t" + k)
 		}
 		fatal("Don't know how to handle a directory with multiple packages")
 	}
-	var pkg *ast.Package
-	//hack because we don't know or care what the package is
-	for k, v := range pkgs {
-		if len(pkgs) == 2 && k == "documentation" {
-			continue
+	if pkg == nil {
+		//hack because we don't know or care what the package is
+		for _, v := range pkgs {
+			pkg = v
 		}
-		pkg = v
 	}
 
 	docs := doc.NewPackageDoc(pkg, "")

@@ -6,6 +6,8 @@ import (
 	"go/token"
 )
 
+//BUG(jmf): Could print var or const before realizing none are exported.
+
 func doPackage(m *M) {
 	m.docs.Filter(ast.IsExported)
 	m.name = m.pkg.Name
@@ -43,7 +45,7 @@ func doPackage(m *M) {
 			m.WriteString("\n.RS")
 		}
 		for _, f := range t.Factories {
-			if !ast.IsExported(f.Name) { //hack around go/doc(3) bug
+			if !ast.IsExported(f.Name) {
 				continue
 			}
 			m.WriteString("\n.RB \"func \" ")
@@ -51,7 +53,7 @@ func doPackage(m *M) {
 			m.WriteString("\n.sp 0")
 		}
 		for _, mt := range t.Methods {
-			if !ast.IsExported(mt.Name) { //hack around go/doc(3) bug
+			if !ast.IsExported(mt.Name) {
 				continue
 			}
 			m.WriteString("\n.RB \"func (")
@@ -98,21 +100,28 @@ func doPackage(m *M) {
 		m.WriteString("\"\n.B type ")
 		m.WriteString(name)
 		m.WriteByte(' ')
-		composite := false
+		composite, unexported := false, false
+		kind := "fields."
 		switch typ := t.Type.Type.(type) {
 		case *ast.InterfaceType:
 			m.WriteString("interface {\n.RS")
-			methods(m.F, typ.Methods, false)
+			unexported = methods(m.F, typ.Methods, false)
 			composite = true
+			kind = "methods."
 		case *ast.StructType:
 			m.WriteString("struct {\n.RS\n")
-			fields(m.F, typ.Fields, "\n")
+			unexported = fields(m.F, typ.Fields, "\n")
 			composite = true
 		default:
 			m.WriteString(typesigs(t.Type.Type))
 		}
 		if composite {
 			m.nl()
+			if unexported {
+				m.WriteString(".sp 0\n.B //contains unexported ")
+				m.WriteString(kind)
+				m.WriteByte('\n')
+			}
 			m.WriteString(".RE\n.B }")
 		}
 		l := len(t.Doc) + len(t.Consts) + len(t.Vars) + len(t.Factories)
@@ -164,7 +173,7 @@ func Values(m *M, V []*doc.ValueDoc) {
 			m.WriteString(".B ")
 			vs := sp.(*ast.ValueSpec)
 			for k, n := range vs.Names {
-				if !ast.IsExported(n.Name) { //hack around go/doc(3) bug
+				if !ast.IsExported(n.Name) {
 					continue
 				}
 				m.WriteString(n.Name)
@@ -191,7 +200,7 @@ func Values(m *M, V []*doc.ValueDoc) {
 
 func Funcs(m *F, F []*doc.FuncDoc) {
 	for _, f := range F {
-		if !ast.IsExported(f.Name) { //hack around go/doc(3) bug for methods
+		if !ast.IsExported(f.Name) {
 			continue
 		}
 		m.PP()
@@ -265,6 +274,100 @@ func params(m *F, fl []*ast.Field, decl bool) {
 	}
 }
 
+func fields(mr *F, fl *ast.FieldList, sep string) (unex bool) {
+	if fl == nil || len(fl.List) == 0 {
+		return
+	}
+	if sep != "\n" {
+		sep += " "
+	}
+	for i, f := range fl.List {
+		m := Formatter()
+		uxc := 0
+		for j, n := range f.Names {
+			if !ast.IsExported(n.Name) {
+				unex = true
+				uxc++
+				continue
+			}
+			m.WriteString(n.Name)
+			if j != len(f.Names)-1 {
+				m.WriteString(", ")
+			} else {
+				m.WriteByte(' ')
+			}
+		}
+		if uxc == len(f.Names) && uxc != 0 {
+			continue
+		} else if len(f.Names) == 0 {
+			var v ast.Expr
+			switch t := f.Type.(type) {
+				case *ast.Ident:
+					v = t
+				case *ast.SelectorExpr:
+					v = t.X
+				case *ast.StarExpr:
+					v = t.X
+			}
+			if !ast.IsExported(v.(*ast.Ident).Name) {
+				continue
+			}
+		}
+		sig := typesigs(f.Type)
+		if sep != "\n" {
+			m.BR.B(sig)
+		} else {
+			m.WriteString(sig)
+		}
+		if i != len(fl.List)-1 {
+			if sep == "\n" {
+				m.nl()
+				m.WriteString(".sp 0\n")
+			} else {
+				m.WriteString(sep)
+			}
+		}
+		if m.Len() > 0 {
+			if sep == "\n" {
+				mr.WriteString(".B ")
+			}
+			mr.Write(m.Bytes())
+		}
+
+	}
+	return
+}
+
+func methods(m *F, fl *ast.FieldList, inline bool) (unex bool) {
+	if fl == nil || len(fl.List) == 0 {
+		return
+	}
+	for _, f := range fl.List {
+		if !inline {
+			m.nl()
+			m.WriteString(".B ")
+		}
+		if f.Names != nil {
+			name := f.Names[0].Name
+			if ast.IsExported(name) {
+				m.WriteString(name)
+				Func(m, f.Type.(*ast.FuncType), false)
+			} else {
+				unex = true
+			}
+		} else {
+			m.WriteString(typesigs(f.Type))
+		}
+		if inline {
+			m.WriteString("; ")
+		} else {
+			m.nl()
+			m.WriteString(".sp 0\n")
+		}
+	}
+	return
+}
+
 func typesig(m *M, e interface{}) {
 	b := Formatter()
 	typesigi(b, e, false)
@@ -325,65 +428,5 @@ func typesigi(m *F, e interface{}, embedded bool) {
 		typesigi(m, t.X, embedded)
 		str(".")
 		typesigi(m, t.Sel, embedded)
-	}
-}
-
-func fields(m *F, fl *ast.FieldList, sep string) {
-	if fl == nil || len(fl.List) == 0 {
-		return
-	}
-	if sep != "\n" {
-		sep += " "
-	}
-	for i, f := range fl.List {
-		if sep == "\n" {
-			m.WriteString(".B ")
-		}
-		for j, n := range f.Names {
-			m.WriteString(n.Name)
-			if j != len(f.Names)-1 {
-				m.WriteString(", ")
-			} else {
-				m.WriteByte(' ')
-			}
-		}
-		sig := typesigs(f.Type)
-		if sep != "\n" {
-			m.BR.B(sig)
-		} else {
-			m.WriteString(sig)
-		}
-		if i != len(fl.List)-1 {
-			if sep == "\n" {
-				m.nl()
-				m.WriteString(".sp 0\n")
-			} else {
-				m.WriteString(sep)
-			}
-		}
-	}
-}
-
-func methods(m *F, fl *ast.FieldList, inline bool) {
-	if fl == nil || len(fl.List) == 0 {
-		return
-	}
-	for _, f := range fl.List {
-		if !inline {
-			m.nl()
-			m.WriteString(".B ")
-		}
-		if f.Names != nil {
-			m.WriteString(f.Names[0].Name)
-			Func(m, f.Type.(*ast.FuncType), false)
-		} else {
-			m.WriteString(typesigs(f.Type))
-		}
-		if inline {
-			m.WriteString("; ")
-		} else {
-			m.nl()
-			m.WriteString(".sp 0\n")
-		}
 	}
 }

@@ -39,7 +39,7 @@ func (c *coll) join() []byte {
 
 type loc struct {
 	indent int
-	line []byte
+	line   []byte
 }
 
 var lrx = RX("\n")
@@ -73,7 +73,8 @@ func locify(ls [][]byte) []*loc {
 		if tab {
 			comp = byte('\t')
 		}
-		for ; ind < len(line) && line[ind] == comp; ind++ {}
+		for ; ind < len(line) && line[ind] == comp; ind++ {
+		}
 		if !tab {
 			//go/doc trims first space and we assume 4sp = 1tb
 			ind = (ind + 1) / 4
@@ -100,7 +101,8 @@ func partition(locs []*loc) *vector.Vector {
 	ret := &vector.Vector{}
 	for i := 0; i < ln; {
 		//skip blank lines
-		for ; i < ln && locs[i].indent == -1; i++ {}
+		for ; i < ln && locs[i].indent == -1; i++ {
+		}
 		//select mode
 		if locs[i].indent == 0 {
 			//paragraph mode
@@ -117,7 +119,7 @@ func partition(locs []*loc) *vector.Vector {
 			}
 			//TODO should cleave off any extraneous blank lines at the end
 			end := i
-			if end - start > 0 {
+			if end-start > 0 {
 				ret.Push(locs[start:end])
 			}
 		}

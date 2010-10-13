@@ -93,7 +93,7 @@ func grep_version(pkg *ast.Package) string {
 	return ""
 }
 
-func flatten(docs *doc.PackageDoc) <-chan string {
+func flatten(docs *doc.PackageDoc, extras []string) <-chan string {
 	out := make(chan string)
 	var sub func(interface{})
 	sub = func(x interface{}) {
@@ -117,6 +117,12 @@ func flatten(docs *doc.PackageDoc) <-chan string {
 		}
 	}
 	go func() {
+		for _, x := range extras {
+			out <- x
+		}
+		for _, bug := range docs.Bugs {
+			out <- bug
+		}
 		out <- docs.Doc
 		sub(docs.Consts)
 		sub(docs.Types)
@@ -127,16 +133,16 @@ func flatten(docs *doc.PackageDoc) <-chan string {
 	return out
 }
 
-var refrx = RX(SP + rrx)
-
-func (m *M) find_refs() {
+func (m *M) find_refs(extras []string) {
 	var acc vector.StringVector
 	seen := map[string]bool{}
 	seen[m.name+"("+m.sec+")"] = true //don't want recursive references
-	for str := range flatten(m.docs) {
-		for _, idx := range refrx.FindAllStringIndex(str, -1) {
-			sub := strings.TrimSpace(str[idx[0]:idx[1]])
-			switch sub[len(sub)-2] { //check the part in the ()
+	for str := range flatten(m.docs, extras) {
+		for _, word := range strings.Fields(str) {
+			if !refrx.MatchString(word) {
+				continue
+			}
+			switch word[strings.Index(word, "(")+1] { //check the part in the ()
 			case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
 				'n', 'o', 'l', 'x', 'p':
 				//okay, even though most of these are unlikely
@@ -144,9 +150,9 @@ func (m *M) find_refs() {
 			default:
 				continue
 			}
-			if !seen[sub] {
-				seen[sub] = true
-				acc.Push(sub)
+			if !seen[word] {
+				seen[word] = true
+				acc.Push(word)
 			}
 		}
 	}

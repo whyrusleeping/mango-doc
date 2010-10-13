@@ -12,7 +12,7 @@ func doPackage(m *M) {
 	m.docs.Filter(ast.IsExported)
 	m.name = m.pkg.Name
 	m.sec = "3"
-	m.find_refs() //need name and sec first so we can ignore self references
+	m.find_refs(nil) //need name and sec first so we can ignore self references
 
 	m.do_header("Go Packages")
 	m.do_name()

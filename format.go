@@ -103,7 +103,7 @@ func (m *F) PP() {
 func (m *F) section(name string) {
 	m.nl()
 	m.WriteString(".SH \"")
-	m.WriteString(name)
+	m.WriteString(strings.TrimSpace(name))
 	m.WriteString("\"\n")
 }
 
@@ -116,7 +116,7 @@ func (m *F) words(sentence []byte) {
 			continue
 		}
 		switch {
-		case inlinerefrx.Match(word): //defined above find_refs()
+		case refrx.Match(word): //defined above find_refs()
 			m.nl()
 			m.WriteString(".BR ")
 			piv := bytes.IndexByte(word, '(')

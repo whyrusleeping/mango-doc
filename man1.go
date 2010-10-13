@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"path"
 	"go/ast"
+	"container/vector"
 )
 
 func doCommand(m *M) {
@@ -12,8 +13,8 @@ func doCommand(m *M) {
 
 	//extract information
 	m.name = grep_name(m.pkg)
-	m.find_refs() //need name and sec first so we can ignore self references
-	flags := grep_flags(m)
+	flags, descrs := grep_flags(m)
+	m.find_refs(descrs) //need name and sec first so we can ignore self references
 
 	m.do_header("User Commands")
 	m.do_name()
@@ -103,8 +104,9 @@ type flags struct {
 	flags [][4][]byte //varname, name, default, help
 }
 
-func grep_flags(m *M) flags {
+func grep_flags(m *M) (flags, []string) {
 	out := flags{"", make([][4][]byte, 0, 8)}
+	descrs := &vector.StringVector{}
 
 	//see if there's an additional usage string
 	for _, fnc := range m.docs.Funcs {
@@ -131,11 +133,13 @@ func grep_flags(m *M) flags {
 							}
 
 							//package up flag info
+							descr := lit(c.Args[2])
+							descrs.Push(string(descr))
 							group := [...][]byte{
 								[]byte(Val.Names[i].Name),
 								lit(c.Args[0]),
 								lit(c.Args[1]),
-								lit(c.Args[2]),
+								descr,
 							}
 							if s.Sel.Name == "Bool" {
 								group[0] = nil
@@ -159,5 +163,5 @@ func grep_flags(m *M) flags {
 		}
 	}
 
-	return out
+	return out, []string(*descrs)
 }

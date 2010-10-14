@@ -7,7 +7,7 @@ var RX = regexp.MustCompile
 const SP = "[ \t]"
 const NS = "[^ \t]"
 
-var refrx = RX("..\\(.\\)$")                       //used in extract.go:words
+var refrx = RX("..\\(.\\)$") //used in extract.go:words
 
 func inverseMatch(r *regexp.Regexp, s []byte) [][]byte {
 	in := r.FindAllIndex(s, -1)

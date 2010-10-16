@@ -132,7 +132,7 @@ var (
 be named after the file name that contains it (_ will be replaced by a space).
 The contents of each file will be formatted by the same rules as if they were
 extracted from comments. To include preformatted sections see -include.
-You cannot override OPTIONS, BUGS or SEE ALSO.`)
+You cannot override SYNOPSIS, OPTIONS, BUGS or SEE ALSO.`)
 
 	Includes = flag.String("include", "",
 		`Generate sections from a comma-seperated list of filenames. Each section will
@@ -218,7 +218,7 @@ func csv_files(in string, disallow bool) (out []*pair) {
 		sname = strings.Replace(sname, "_", " ", -1)
 		if disallow {
 			switch sname {
-			case "SEE ALSO", "OPTIONS", "BUGS":
+			case "SEE ALSO", "SYNOPSIS", "OPTIONS", "BUGS":
 				fatal("Cannot override SEE ALSO, BUGS, or OPTIONS")
 			}
 		}

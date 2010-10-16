@@ -12,6 +12,8 @@ import (
 	"sort"
 )
 
+//BUG(jmf): Quotation marks are all wrong in postscript output.
+
 func ovr_map(in []*section) map[string]*vector.Vector {
 	out := map[string]*vector.Vector{}
 	for _, s := range in {

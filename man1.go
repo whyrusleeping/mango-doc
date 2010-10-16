@@ -56,14 +56,16 @@ func doCommand(m *M) {
 			if i != 0 {
 				m.nl()
 			}
-			m.WriteString(".TP\n\\-")
+			m.WriteString(".TP\n.BR \"\\-")
 			m.Write(flag[1])       //name
+			m.WriteString(" \"")
 			if len(flag[0]) != 0 { //variable name
 				m.WriteByte(' ')
 				m.Write(flag[0])
 				if len(flag[2]) != 0 { //default value
-					m.WriteString(" = ")
+					m.WriteString("\" = ")
 					m.Write(flag[2])
+					m.WriteByte('"')
 				}
 			}
 			m.nl()

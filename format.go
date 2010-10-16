@@ -144,6 +144,10 @@ func (m *F) paras(ps *vector.Vector) {
 			m.PP()
 		}
 		switch p := P.(type) {
+		case []byte: // raw section
+			m.nl()
+			m.Write(p)
+			m.nl()
 		case [][]byte:
 			for _, s := range p {
 				m.nl()

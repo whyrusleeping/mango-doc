@@ -12,19 +12,28 @@ import (
 	"sort"
 )
 
+func ovr_map(in []*section) map[string]*vector.Vector {
+	out := map[string]*vector.Vector{}
+	for _, s := range in {
+		out[s.name] = s.paras
+	}
+	return out
+}
+
 type M struct {
 	*F
 	name, version, sec string
 	descr              []byte //short description
-	sections           []*section
+	sections, overd    []*section
+	overm              map[string]*vector.Vector
 	refs               []string
 	pkg                *ast.Package
 	docs               *doc.PackageDoc
 }
 
-func NewManPage(pkg *ast.Package, docs *doc.PackageDoc) *M {
+func NewManPage(pkg *ast.Package, docs *doc.PackageDoc, overd []*section) *M {
 	//break up the package document, extract a short description
-	dvec := unstring(docs.Doc)
+	dvec := unstring([]byte(docs.Doc))
 	var fs []byte //first sentence.
 	if dvec != nil && dvec.Len() > 0 {
 		if p, ok := dvec.At(0).([][]byte); ok && len(p) > 0 {
@@ -38,12 +47,11 @@ func NewManPage(pkg *ast.Package, docs *doc.PackageDoc) *M {
 	}
 	m := &M{
 		F:        Formatter(),
-		name:     "", //filled in dependent on kinds of man page
 		version:  grep_version(pkg),
-		sec:      "", //filled in dependent on kinds of man page
 		descr:    fs,
 		sections: sections(dvec),
-		refs:     nil, //need name and sec filled in first
+		overd:    overd,
+		overm:    ovr_map(overd),
 		pkg:      pkg,
 		docs:     docs,
 	}
@@ -189,36 +197,65 @@ func (m *M) do_name() {
 	}
 }
 
-func (m *M) do_description() {
-	if len(m.sections) > 0 && m.sections[0].paras.Len() > 0 {
-		m.section("DESCRIPTION")
-		m.paras(m.sections[0].paras)
+func get_section(m *M, nm string, i int) (ps *vector.Vector) {
+	ok := false
+	if ps, ok = m.overm[nm]; ok {
+		m.overm[nm] = nil, false
+	} else if i != -1 {
+		ps = m.sections[i].paras
+	}
+	//regardless of where it comes from, remove from m.sections given valid i
+	switch {
+	case i == -1:
+		return
+	case i == 0:
 		m.sections = m.sections[1:]
+	case i == len(m.sections)-1:
+		m.sections = m.sections[:len(m.sections)-1]
+	default:
+		copy(m.sections[i:], m.sections[i+1:])
+		m.sections = m.sections[:len(m.sections)-1]
+	}
+	return
+}
+
+func (m *M) do_description() {
+	i := -1
+	if len(m.sections) > 0 {
+		i = 0
+	}
+	ps := get_section(m, "", i)
+	if ps.Len() > 0 {
+		m.section("DESCRIPTION")
+		m.paras(ps)
 	}
 }
 
 func (m *M) user_sections(sx ...string) {
-	ns := make([]*section, len(m.sections))
-	n := 0
 	for _, req := range sx {
-		n = 0
-		for _, sc := range m.sections {
-			if sc.name == req {
-				m.section(sc.name)
-				m.paras(sc.paras)
-			} else {
-				ns[n] = sc
-				n++
+		for i, sc := range m.sections {
+			if sc.name != req {
+				i = -1
+			}
+			if ps := get_section(m, req, i); ps != nil {
+				m.section(req)
+				m.paras(ps)
 			}
 		}
 	}
-	m.sections = ns[:n]
 }
 
 func (m *M) remaining_user_sections() {
 	for _, sec := range m.sections {
 		m.section(sec.name)
 		m.paras(sec.paras)
+	}
+	//this is horrible but beats deleting the overd sections as we go
+	for _, s := range m.overd {
+		if _, ok := m.overm[s.name]; ok {
+			m.section(s.name)
+			m.paras(s.paras)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"unicode"
+	"strings"
 	"bytes"
 	"container/vector"
 )
@@ -130,8 +131,8 @@ func partition(locs []*loc) *vector.Vector {
 	return ret
 }
 
-func unstring(in string) *vector.Vector {
-	return partition(locify(lines([]byte(in))))
+func unstring(in []byte) *vector.Vector {
+	return partition(locify(lines(in)))
 }
 
 var srx = RX(NS + "[.!?][ \n\t]+")
@@ -151,7 +152,21 @@ func sentences(in []byte) [][]byte {
 
 type section struct {
 	name  string
-	paras *vector.Vector // [][]byte or []*loc
+	paras *vector.Vector // [][]byte, []byte, or []*loc
+}
+
+func append(s []*section, a *section) []*section {
+	ln := len(s)
+	if ln == 0 {
+		return []*section{a}
+	}
+	if c := cap(s); ln == c {
+		out := make([]*section, ln, ln+1)
+		copy(out, s)
+	}
+	s = s[:ln+1]
+	s[ln] = a
+	return s
 }
 
 func isSecHdr(s interface{}) bool {
@@ -198,7 +213,7 @@ func sections(src *vector.Vector) []*section {
 		start++
 		for end = start; end < src.Len() && !isSecHdr(src.At(end)); end++ {
 		}
-		secs[i] = &section{name, src.Slice(start, end)}
+		secs[i] = &section{strings.TrimSpace(name), src.Slice(start, end)}
 		start = end
 	}
 	return secs

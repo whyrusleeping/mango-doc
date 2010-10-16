@@ -39,12 +39,15 @@ import (
 	"path"
 	"fmt"
 	"strings"
+	"container/vector"
+	"io/ioutil"
 	"go/parser"
 	"go/ast"
 	"go/doc"
 )
 
 var (
+	help = flag.Bool("help", false, "Display help")
 	import_path = flag.String("import", "",
 		"Specify import path")
 	version = flag.String("version", "",
@@ -53,6 +56,19 @@ var (
 		"Specify the manual: see man-pages(7)")
 	package_name = flag.String("package", "",
 		"Select package to use if there are multiple packages in a directory")
+	Sections = flag.String("section", "",
+`Generate sections from a comma-seperated list of filenames. Each section will
+be named after the file name that contains it (_ will be replaced by a space).
+The contents of each file will be formatted by the same rules as if they were
+extracted from comments. To include preformatted sections see -include.
+You cannot override OPTIONS or SEE ALSO.`)
+
+	Includes = flag.String("include", "",
+`Generate sections from a comma-seperated list of filenames. Each section will
+be named after the file name that contains it (_ will be replaced by a space).
+The contents of each file will be included as-is. To let mango do the formatting
+use -section.
+You cannot override OPTIONS or SEE ALSO.`)
 )
 
 
@@ -81,8 +97,10 @@ func lspkgs(dir string, pkgs map[string]*ast.Package) {
 }
 
 func usage(err interface{}) {
-	stderr(err)
-	stderr("mango [flags] [package-directory|package-files]")
+	if err != nil {
+		stderr(err)
+	}
+	stderr("mango [flags] [package-directory|package-files]\nflags:")
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -104,9 +122,53 @@ func clean(pwd, p string) string {
 	return path.Clean(p)
 }
 
+type pair struct {
+	key string
+	value []byte
+}
+
+func p_append(s []*pair, a *pair) []*pair {
+	ln := len(s)
+	if ln == 0 {
+		return []*pair{a}
+	}
+	if c := cap(s); ln == c {
+		out := make([]*pair, ln, ln+1)
+		copy(out, s)
+	}
+	s = s[:ln+1]
+	s[ln] = a
+	return s
+}
+
+func csv_files(in string) (out []*pair) {
+	for _, fname := range strings.Split(in, ",", -1) {
+		sname := strings.TrimSpace(fname)
+		sname = strings.ToUpper(fname)
+		sname = strings.Replace(sname, "_", " ", -1)
+		switch sname {
+		case "SEE ALSO", "OPTIONS":
+			fatal("Cannot override SEE ALSO or OPTIONS")
+		}
+		bytes, err := ioutil.ReadFile(fname)
+		if err != nil {
+			fatal(err)
+		}
+		if sname == "DESCRIPTION" {
+			sname = ""
+		}
+		out = p_append(out, &pair{sname, bytes})
+	}
+	return out
+}
+
 //Usage: %name %flags [package-directory|package-files]
 func main() {
 	flag.Parse()
+
+	if *help {
+		usage(nil)
+	}
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -181,13 +243,27 @@ func main() {
 		}
 	}
 
+	var overd []*section
+	if *Sections != "" {
+		for _, pair := range csv_files(*Sections) {
+			overd = append(overd,
+				&section{pair.key, unstring(pair.value)})
+		}
+	}
+	if *Includes != "" {
+		for _, pair := range csv_files(*Includes) {
+			overd = append(overd,
+				&section{pair.key, &vector.Vector{pair.value}})
+		}
+	}
+
 	//Build and dump docs
 	docs := doc.NewPackageDoc(pkg, "")
 	//hack around there being a documentation package, part 2
 	if xdoc != "" {
 		docs.Doc = xdoc
 	}
-	m := NewManPage(pkg, docs)
+	m := NewManPage(pkg, docs, overd)
 
 	if pkg.Name == "main" {
 		invalid_flag("1", "import", import_path)

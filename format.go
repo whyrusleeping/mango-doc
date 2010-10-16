@@ -116,6 +116,11 @@ func (m *F) words(sentence []byte) {
 			continue
 		}
 		switch {
+		case bytes.HasPrefix(word, []byte("-")):
+			m.nl()
+			m.WriteString(".B ")
+			m.Write(word)
+			m.nl()
 		case refrx.Match(word): //defined above find_refs()
 			m.nl()
 			m.WriteString(".BR ")

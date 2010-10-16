@@ -12,7 +12,9 @@ func doCommand(m *M) {
 	m.sec = "1"
 
 	//extract information
-	m.name = grep_name(m.pkg)
+	if m.name == "" {
+		m.name = grep_name(m.pkg)
+	}
 	flags, descrs := grep_flags(m)
 	m.find_refs(descrs) //need name and sec first so we can ignore self references
 
@@ -57,7 +59,7 @@ func doCommand(m *M) {
 				m.nl()
 			}
 			m.WriteString(".TP\n.BR \"\\-")
-			m.Write(flag[1])       //name
+			m.Write(flag[1]) //name
 			m.WriteString(" \"")
 			if len(flag[0]) != 0 { //variable name
 				m.WriteByte(' ')
@@ -74,10 +76,11 @@ func doCommand(m *M) {
 	}
 
 	//put these in order, leave the rest as they come
-	m.user_sections("DIAGNOSTICS", "ENVIRONMENT", "FILES", "NOTES")
+	m.user_sections("DIAGNOSTICS", "ENVIRONMENT", "FILES")
 	m.remaining_user_sections()
 	m.do_bugs()
 	m.do_see_also()
+	m.do_endmatter()
 }
 
 func grep_name(p *ast.Package) string {
@@ -105,6 +108,8 @@ type flags struct {
 	usage string
 	flags [][4][]byte //varname, name, default, help
 }
+
+//BUG(jmf): No way to group short/long name option pairs.
 
 func grep_flags(m *M) (flags, []string) {
 	out := flags{"", make([][4][]byte, 0, 8)}

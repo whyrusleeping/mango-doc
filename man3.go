@@ -10,7 +10,9 @@ import (
 
 func doPackage(m *M) {
 	m.docs.Filter(ast.IsExported)
-	m.name = m.pkg.Name
+	if m.name == "" {
+		m.name = m.pkg.Name
+	}
 	m.sec = "3"
 	m.find_refs(nil) //need name and sec first so we can ignore self references
 
@@ -79,7 +81,7 @@ func doPackage(m *M) {
 	}
 
 	m.do_description()
-	m.user_sections("DIAGNOSTICS", "ENVIRONMENT", "FILES", "NOTES")
+	m.user_sections("DIAGNOSTICS", "ENVIRONMENT", "FILES")
 	m.remaining_user_sections()
 
 	if len(m.docs.Consts) > 0 {
@@ -149,6 +151,7 @@ func doPackage(m *M) {
 
 	m.do_bugs()
 	m.do_see_also()
+	m.do_endmatter()
 }
 
 func genDoc(m *F, s string) {

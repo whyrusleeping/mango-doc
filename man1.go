@@ -65,7 +65,7 @@ func doCommand(m *M) {
 				m.WriteByte(' ')
 				m.Write(flag[0])
 				if len(flag[2]) != 0 { //default value
-					m.WriteString("\" = ")
+					m.WriteString(" \" = ")
 					m.Write(flag[2])
 					m.WriteByte('"')
 				}

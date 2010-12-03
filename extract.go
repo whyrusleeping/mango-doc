@@ -51,7 +51,6 @@ func lines(p []byte) [][]byte {
 	}
 	out := inverseMatch(lrx, p)
 	for i := 0; i < len(out); i++ {
-		//out[i] = bytes.AddByte(out[i], byte('\n'))
 		out[i] = append(out[i], '\n')
 	}
 	return out

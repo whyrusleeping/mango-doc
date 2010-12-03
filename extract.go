@@ -51,7 +51,8 @@ func lines(p []byte) [][]byte {
 	}
 	out := inverseMatch(lrx, p)
 	for i := 0; i < len(out); i++ {
-		out[i] = bytes.AddByte(out[i], '\n')
+		//out[i] = bytes.AddByte(out[i], byte('\n'))
+		out[i] = append(out[i], '\n')
 	}
 	return out
 }
@@ -153,20 +154,6 @@ func sentences(in []byte) [][]byte {
 type section struct {
 	name  string
 	paras *vector.Vector // [][]byte, []byte, or []*loc
-}
-
-func append(s []*section, a *section) []*section {
-	ln := len(s)
-	if ln == 0 {
-		return []*section{a}
-	}
-	if c := cap(s); ln == c {
-		out := make([]*section, ln, ln+1)
-		copy(out, s)
-	}
-	s = s[:ln+1]
-	s[ln] = a
-	return s
 }
 
 func isSecHdr(s interface{}) bool {

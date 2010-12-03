@@ -197,20 +197,6 @@ type pair struct {
 	value []byte
 }
 
-func p_append(s []*pair, a *pair) []*pair {
-	ln := len(s)
-	if ln == 0 {
-		return []*pair{a}
-	}
-	if c := cap(s); ln == c {
-		out := make([]*pair, ln, ln+1)
-		copy(out, s)
-	}
-	s = s[:ln+1]
-	s[ln] = a
-	return s
-}
-
 func csv_files(in string, disallow bool) (out []*pair) {
 	for _, fname := range strings.Split(in, ",", -1) {
 		sname := strings.TrimSpace(fname)
@@ -229,7 +215,7 @@ func csv_files(in string, disallow bool) (out []*pair) {
 		if sname == "DESCRIPTION" {
 			sname = ""
 		}
-		out = p_append(out, &pair{sname, bytes})
+		out = append(out, &pair{sname, bytes})
 	}
 	return out
 }

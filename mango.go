@@ -111,6 +111,7 @@ import (
 	"container/vector"
 	"io/ioutil"
 	"go/parser"
+	"go/token"
 	"go/ast"
 	"go/doc"
 )
@@ -256,10 +257,11 @@ func main() {
 		}
 	}
 	//parse package(s)
+	fs := token.NewFileSet()
 	if len(files) > 0 {
-		pkgs, err = parser.ParseFiles(files, parser.ParseComments)
+		pkgs, err = parser.ParseFiles(fs, files, parser.ParseComments)
 	} else {
-		pkgs, err = parser.ParseDir(dir, filter, parser.ParseComments)
+		pkgs, err = parser.ParseDir(fs, dir, filter, parser.ParseComments)
 	}
 	if err != nil {
 		fatal("Could not parse " + dir + "\n" + err.String())

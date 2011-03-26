@@ -23,7 +23,7 @@ func escape(in []byte) []byte {
 			buf.WriteByte('\\')
 		case int('.'):
 			if last == 0 || unicode.IsSpace(last) {
-				buf.WriteByte('\\')
+				buf.WriteString("\\&")
 			}
 		case int('\''):
 			if last == 0 || unicode.IsSpace(last) {

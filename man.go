@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"container/vector"
 	"sort"
+	"strconv"
 )
 
 //BUG(jmf): Quotation marks are all wrong in postscript output.
@@ -77,12 +78,9 @@ func lit(x interface{}) []byte {
 		v := b.Value
 		switch b.Kind {
 		case token.CHAR, token.STRING:
-			//need to copy so sentences doesn't muss it up
-			nv := make([]byte, len(v)-2)
-			copy(nv, v[1:len(v)-1])
-			v = nv
+			v, _ = strconv.Unquote(v)
 		}
-		return v
+		return []byte(v)
 	}
 	return nil
 }

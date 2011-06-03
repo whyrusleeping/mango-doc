@@ -39,20 +39,20 @@ func escape(in []byte) []byte {
 }
 
 type BR struct {
-	c, v *vector.StringVector
+	c, v []string
 	bold bool
 }
 
 func NewBR() *BR {
-	return &BR{&vector.StringVector{}, &vector.StringVector{}, true}
+	return &BR{[]string{}, []string{}, true}
 }
 
 func (s *BR) witch() {
-	if s.c.Len() == 0 {
+	if len(s.c) == 0 {
 		return
 	}
-	s.v.Push("\"" + strings.Join([]string(*s.c), "") + "\"")
-	s.c = &vector.StringVector{}
+	s.v = append(s.v, "\""+strings.Join(s.c, "")+"\"")
+	s.c = []string{}
 	s.bold = !s.bold
 }
 
@@ -60,14 +60,14 @@ func (s *BR) B(str string) {
 	if !s.bold {
 		s.witch()
 	}
-	s.c.Push(str)
+	s.c = append(s.c, str)
 }
 
 func (s *BR) R(str string) {
 	if s.bold {
 		s.witch()
 	}
-	s.c.Push(str)
+	s.c = append(s.c, str)
 }
 
 type F struct {
@@ -81,11 +81,11 @@ func Formatter() *F {
 
 func (m *F) br() {
 	m.BR.witch()
-	if m.BR.v.Len() == 0 {
+	if len(m.BR.v) == 0 {
 		return
 	}
-	m.WriteString(".BR " + strings.Join([]string(*m.BR.v), " ") + "\n")
-	m.BR.v = &vector.StringVector{}
+	m.WriteString(".BR " + strings.Join(m.BR.v, " ") + "\n")
+	m.BR.v = []string{}
 	m.BR.bold = true
 }
 

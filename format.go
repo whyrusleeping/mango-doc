@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"strings"
-	"container/vector"
 	"unicode"
 )
 
@@ -143,8 +142,8 @@ func (m *F) text(p []byte) {
 	}
 }
 
-func (m *F) paras(ps *vector.Vector) {
-	for i, P := range *ps {
+func (m *F) paras(ps []interface{}) {
+	for i, P := range ps {
 		if i != 0 {
 			m.PP()
 		}

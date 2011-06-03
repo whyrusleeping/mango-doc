@@ -238,7 +238,7 @@ func (m *M) do_description() {
 	ps := get_section(m, "", i)
 	if ps != nil && ps.Len() > 0 {
 		m.section("DESCRIPTION")
-		m.paras(ps)
+		m.paras([]interface{}(*ps))
 	}
 }
 
@@ -250,7 +250,7 @@ func (m *M) user_sections(sx ...string) {
 			}
 			if ps := get_section(m, req, i); ps != nil {
 				m.section(req)
-				m.paras(ps)
+				m.paras([]interface{}(*ps))
 			}
 		}
 	}
@@ -259,13 +259,13 @@ func (m *M) user_sections(sx ...string) {
 func (m *M) remaining_user_sections() {
 	for _, sec := range m.sections {
 		m.section(sec.name)
-		m.paras(sec.paras)
+		m.paras([]interface{}(*sec.paras))
 	}
 	//this is horrible but beats deleting the overd sections as we go
 	for _, s := range m.overd {
 		if _, ok := m.overm[s.name]; ok {
 			m.section(s.name)
-			m.paras(s.paras)
+			m.paras([]interface{}(*s.paras))
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (m *M) remaining_user_sections() {
 func (m *M) do_endmatter() {
 	for _, sec := range m.end {
 		m.section(sec.name)
-		m.paras(sec.paras)
+		m.paras([]interface{}(*sec.paras))
 	}
 }
 

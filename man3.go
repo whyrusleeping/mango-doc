@@ -158,7 +158,7 @@ func genDoc(m *F, s string) {
 	if len(s) == 0 {
 		return
 	}
-	m.paras(unstring([]byte(s)))
+	m.paras([]interface{}(*unstring([]byte(s))))
 }
 
 //BUG(jmf): Does not render RHS of consts or vars for section 3.

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"path"
 	"go/ast"
-	"container/vector"
 )
 
 func doCommand(m *M) {
@@ -111,9 +110,9 @@ type flags struct {
 
 //BUG(jmf): No way to group short/long name option pairs.
 
-func grep_flags(m *M) (flags, []string) {
+func grep_flags(m *M) (a flags, d []string) {
 	out := flags{"", make([][4][]byte, 0, 8)}
-	descrs := &vector.StringVector{}
+	descrs := []string{}
 
 	//see if there's an additional usage string
 	for _, fnc := range m.docs.Funcs {
@@ -141,7 +140,7 @@ func grep_flags(m *M) (flags, []string) {
 
 							//package up flag info
 							descr := lit(c.Args[2])
-							descrs.Push(string(descr))
+							descrs = append(descrs, string(descr))
 							group := [...][]byte{
 								[]byte(Val.Names[i].Name),
 								lit(c.Args[0]),
@@ -170,5 +169,5 @@ func grep_flags(m *M) (flags, []string) {
 		}
 	}
 
-	return out, []string(*descrs)
+	return out, descrs
 }

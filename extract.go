@@ -4,7 +4,6 @@ import (
 	"unicode"
 	"strings"
 	"bytes"
-	"container/vector"
 )
 
 type coll [][]byte
@@ -97,12 +96,11 @@ func locify(ls [][]byte) []*loc {
 	return ret
 }
 
-func partition(locs []*loc) *vector.Vector {
+func partition(locs []*loc) (ret []interface{}) {
 	ln := len(locs)
 	if ln == 0 {
-		return nil
+		return
 	}
-	ret := &vector.Vector{}
 	for i := 0; i < ln; {
 		//skip blank lines
 		for ; i < ln && locs[i].indent == -1; i++ {
@@ -114,7 +112,7 @@ func partition(locs []*loc) *vector.Vector {
 			for ; i < ln && locs[i].indent == 0; i++ {
 				acc.push(locs[i].line)
 			}
-			ret.Push(sentences(acc.join()))
+			ret = append(ret, sentences(acc.join()))
 		} else {
 			//"code" mode
 			start := i
@@ -124,14 +122,14 @@ func partition(locs []*loc) *vector.Vector {
 			//TODO should cleave off any extraneous blank lines at the end
 			end := i
 			if end-start > 0 {
-				ret.Push(locs[start:end])
+				ret = append(ret, locs[start:end])
 			}
 		}
 	}
-	return ret
+	return
 }
 
-func unstring(in []byte) *vector.Vector {
+func unstring(in []byte) []interface{} {
 	return partition(locify(lines(in)))
 }
 
@@ -152,7 +150,7 @@ func sentences(in []byte) [][]byte {
 
 type section struct {
 	name  string
-	paras *vector.Vector // [][]byte, []byte, or []*loc
+	paras []interface{} // [][]byte, []byte, or []*loc
 }
 
 func isSecHdr(s interface{}) bool {
@@ -168,13 +166,13 @@ func isSecHdr(s interface{}) bool {
 	return true
 }
 
-func sections(src *vector.Vector) []*section {
+func sections(src []interface{}) []*section {
 	if src == nil {
 		return nil
 	}
 	num, end := 1, 0
 	//check for other sections
-	for i, v := range *src {
+	for i, v := range src {
 		if isSecHdr(v) {
 			num++
 			//mark first sec header
@@ -187,19 +185,19 @@ func sections(src *vector.Vector) []*section {
 		return []*section{&section{"", src}}
 	}
 	secs := make([]*section, num)
-	secs[0] = &section{"", src.Slice(0, end)}
+	secs[0] = &section{"", src[:end]}
 	start := end
 	for i := 1; i < num; i++ {
-		p, ok := src.At(start).([][]byte)
+		p, ok := src[start].([][]byte)
 		if !ok || len(p) > 1 {
 			start++
 			continue
 		}
 		name := string(p[0])
 		start++
-		for end = start; end < src.Len() && !isSecHdr(src.At(end)); end++ {
+		for end = start; end < len(src) && !isSecHdr(src[end]); end++ {
 		}
-		secs[i] = &section{strings.TrimSpace(name), src.Slice(start, end)}
+		secs[i] = &section{strings.TrimSpace(name), src[start:end]}
 		start = end
 	}
 	return secs

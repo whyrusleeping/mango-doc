@@ -117,7 +117,7 @@ func grep_flags(m *M) (a flags, d []string) {
 	//see if there's an additional usage string
 	for _, fnc := range m.docs.Funcs {
 		if fnc.Name == "main" {
-			for _, line := range strings.Split(fnc.Doc, "\n", -1) {
+			for _, line := range strings.Split(fnc.Doc, "\n") {
 				if s := usrx.FindStringIndex(line); s != nil {
 					out.usage = line[s[1]:]
 					break //only going to be one

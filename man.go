@@ -8,15 +8,14 @@ import (
 	"go/ast"
 	"go/doc"
 	"go/token"
-	"container/vector"
 	"sort"
 	"strconv"
 )
 
 //BUG(jmf): Quotation marks are all wrong in postscript output.
 
-func ovr_map(in []*section) map[string]*vector.Vector {
-	out := map[string]*vector.Vector{}
+func ovr_map(in []*section) map[string][]interface{} {
+	out := map[string][]interface{}{}
 	for _, s := range in {
 		out[s.name] = s.paras
 	}
@@ -28,7 +27,7 @@ type M struct {
 	name, version, sec   string
 	descr                []byte //short description
 	sections, overd, end []*section
-	overm                map[string]*vector.Vector
+	overm                map[string][]interface{}
 	refs                 []string
 	pkg                  *ast.Package
 	docs                 *doc.PackageDoc
@@ -38,13 +37,13 @@ func NewManPage(pkg *ast.Package, docs *doc.PackageDoc, overd []*section) *M {
 	//break up the package document, extract a short description
 	dvec := unstring([]byte(docs.Doc))
 	var fs []byte //first sentence.
-	if dvec != nil && dvec.Len() > 0 {
-		if p, ok := dvec.At(0).([][]byte); ok && len(p) > 0 {
+	if dvec != nil && len(dvec) > 0 {
+		if p, ok := dvec[0].([][]byte); ok && len(p) > 0 {
 			fs = p[0]
 			//if the first paragraph is one sentence, only use it in description
 			//otherwise we leave it where it is to repeat.
 			if len(p) == 1 {
-				dvec.Delete(0)
+				dvec = dvec[1:]
 			}
 		}
 	}
@@ -153,7 +152,7 @@ func flatten(docs *doc.PackageDoc, extras []string) <-chan string {
 }
 
 func (m *M) find_refs(extras []string) {
-	var acc vector.StringVector
+	var acc []string
 	seen := map[string]bool{}
 	seen[m.name+"("+m.sec+")"] = true //don't want recursive references
 	for str := range flatten(m.docs, extras) {
@@ -167,16 +166,17 @@ func (m *M) find_refs(extras []string) {
 				//okay, even though most of these are unlikely
 				//and some deprecated
 			default:
+				//not a man page
 				continue
 			}
 			if !seen[word] {
 				seen[word] = true
-				acc.Push(word)
+				acc = append(acc, word)
 			}
 		}
 	}
-	sort.Sort(&acc)
-	m.refs = []string(acc)
+	sort.Strings(acc)
+	m.refs = acc
 }
 
 func (m *M) do_header(kind string) {
@@ -208,10 +208,10 @@ func (m *M) do_name() {
 	}
 }
 
-func get_section(m *M, nm string, i int) (ps *vector.Vector) {
+func get_section(m *M, nm string, i int) (ps []interface{}) {
 	ok := false
 	if ps, ok = m.overm[nm]; ok {
-		m.overm[nm] = nil, false
+		delete(m.overm, nm)
 	} else if i != -1 {
 		ps = m.sections[i].paras
 	}
@@ -236,9 +236,9 @@ func (m *M) do_description() {
 		i = 0
 	}
 	ps := get_section(m, "", i)
-	if ps != nil && ps.Len() > 0 {
+	if ps != nil && len(ps) > 0 {
 		m.section("DESCRIPTION")
-		m.paras([]interface{}(*ps))
+		m.paras(ps)
 	}
 }
 
@@ -250,7 +250,7 @@ func (m *M) user_sections(sx ...string) {
 			}
 			if ps := get_section(m, req, i); ps != nil {
 				m.section(req)
-				m.paras([]interface{}(*ps))
+				m.paras(ps)
 			}
 		}
 	}
@@ -259,13 +259,13 @@ func (m *M) user_sections(sx ...string) {
 func (m *M) remaining_user_sections() {
 	for _, sec := range m.sections {
 		m.section(sec.name)
-		m.paras([]interface{}(*sec.paras))
+		m.paras(sec.paras)
 	}
 	//this is horrible but beats deleting the overd sections as we go
 	for _, s := range m.overd {
 		if _, ok := m.overm[s.name]; ok {
 			m.section(s.name)
-			m.paras([]interface{}(*s.paras))
+			m.paras(s.paras)
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (m *M) remaining_user_sections() {
 func (m *M) do_endmatter() {
 	for _, sec := range m.end {
 		m.section(sec.name)
-		m.paras([]interface{}(*sec.paras))
+		m.paras(sec.paras)
 	}
 }
 

@@ -1,12 +1,19 @@
 package main
 
 import (
-	"go/doc"
 	"go/ast"
+	"go/doc"
 	"go/token"
 )
 
-//BUG(jmf): Could print var or const before realizing none are exported.
+func type_type(t *doc.Type) *ast.TypeSpec {
+	print(len(t.Decl.Specs)) //XXX remove if always 1
+	return t.Decl.Specs[0].(*ast.TypeSpec)
+}
+
+func type_name(t *doc.Type) string {
+	return type_type(t).Name.String()
+}
 
 func doPackage(m *M) {
 	m.docs.Filter(ast.IsExported)
@@ -35,10 +42,10 @@ func doPackage(m *M) {
 	m.WriteString("\\(rq\n.sp")
 
 	//build TOC
-	if len(m.docs.Consts) > 0 {
+	if len(m.docs.Consts) > 0 { //TODO see bug above
 		m.WriteString("\n.B Constants\n.sp 0")
 	}
-	if len(m.docs.Vars) > 0 {
+	if len(m.docs.Vars) > 0 { //TODO see bug above
 		m.WriteString("\n.B Variables\n.sp 0")
 	}
 	for _, f := range m.docs.Funcs {
@@ -48,13 +55,13 @@ func doPackage(m *M) {
 	}
 	for _, t := range m.docs.Types {
 		m.WriteString("\n.RB \"type \" ")
-		m.WriteString(t.Type.Name.String())
+		m.WriteString(type_name(t))
 		m.WriteString("\n.sp 0")
-		ind := len(t.Factories) > 0 || len(t.Methods) > 0
+		ind := len(t.Funcs) > 0 || len(t.Methods) > 0
 		if ind {
 			m.WriteString("\n.RS")
 		}
-		for _, f := range t.Factories {
+		for _, f := range t.Funcs {
 			if !ast.IsExported(f.Name) {
 				continue
 			}
@@ -67,10 +74,7 @@ func doPackage(m *M) {
 				continue
 			}
 			m.WriteString("\n.RB \"func (")
-			if _, ok := mt.Recv.(*ast.StarExpr); ok {
-				m.WriteByte('*')
-			}
-			m.WriteString(t.Type.Name.String())
+			m.WriteString(mt.Recv)
 			m.WriteString(") \" ")
 			m.WriteString(mt.Name)
 			m.WriteString("\n.sp 0")
@@ -103,7 +107,7 @@ func doPackage(m *M) {
 		m.section("TYPES")
 	}
 	for _, t := range m.docs.Types {
-		name := t.Type.Name.String()
+		name := type_name(t)
 		m.nl()
 		m.WriteString(".SS \"")
 		m.WriteString(name)
@@ -112,7 +116,7 @@ func doPackage(m *M) {
 		m.WriteByte(' ')
 		composite, unexported := false, false
 		kind := "fields."
-		switch typ := t.Type.Type.(type) {
+		switch typ := type_type(t).Type.(type) {
 		case *ast.InterfaceType:
 			m.WriteString("interface {\n.RS")
 			unexported = methods(m.F, typ.Methods, false)
@@ -123,7 +127,7 @@ func doPackage(m *M) {
 			unexported = fields(m.F, typ.Fields, "\n")
 			composite = true
 		default:
-			m.WriteString(typesigs(t.Type.Type))
+			m.WriteString(typesigs(type_type(t).Type))
 		}
 		if composite {
 			m.nl()
@@ -134,7 +138,7 @@ func doPackage(m *M) {
 			}
 			m.WriteString(".RE\n.B }")
 		}
-		l := len(t.Doc) + len(t.Consts) + len(t.Vars) + len(t.Factories)
+		l := len(t.Doc) + len(t.Consts) + len(t.Vars) + len(t.Funcs)
 		l += len(t.Methods)
 		if l > 0 {
 			m.PP()
@@ -144,7 +148,7 @@ func doPackage(m *M) {
 			Values(m, t.Consts)
 			Values(m, t.Vars)
 
-			Funcs(m.F, t.Factories)
+			Funcs(m.F, t.Funcs)
 			Funcs(m.F, t.Methods)
 		}
 	}
@@ -163,7 +167,7 @@ func genDoc(m *F, s string) {
 
 //BUG(jmf): Does not render RHS of consts or vars for section 3.
 
-func Values(m *M, V []*doc.ValueDoc) {
+func Values(m *M, V []*doc.Value) {
 	for i, v := range V {
 		genDoc(m.F, v.Doc)
 		m.PP()
@@ -209,21 +213,16 @@ func Values(m *M, V []*doc.ValueDoc) {
 	}
 }
 
-func Funcs(m *F, F []*doc.FuncDoc) {
+func Funcs(m *F, F []*doc.Func) {
 	for _, f := range F {
 		if !ast.IsExported(f.Name) {
 			continue
 		}
 		m.PP()
 		m.BR.B("func ")
-		if f.Recv != nil {
+		if f.Recv != "" {
 			m.BR.B("(")
-			if st, ok := f.Recv.(*ast.StarExpr); ok {
-				m.BR.B("*")
-				m.BR.B(st.X.(*ast.Ident).Name)
-			} else {
-				m.BR.B(f.Recv.(*ast.Ident).Name)
-			}
+			m.BR.B(f.Recv)
 			m.BR.B(") ")
 		}
 		m.BR.B(f.Name)

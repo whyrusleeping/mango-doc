@@ -1,10 +1,10 @@
 package main
 
 import (
-	"strings"
 	"bytes"
-	"path"
 	"go/ast"
+	"path"
+	"strings"
 )
 
 func doCommand(m *M) {

@@ -8,31 +8,31 @@ import (
 
 func escape(in []byte) []byte {
 	var buf bytes.Buffer
-	last := 0
-	for _, rune := range bytes.Runes(in) {
-		switch rune {
-		case int('\n'):
+	var last rune
+	for _, r := range bytes.Runes(in) {
+		switch r {
+		case rune('\n'):
 			buf.WriteByte(' ')
-			last = int(' ')
+			last = rune(' ')
 			continue
-		case int('\\'):
+		case rune('\\'):
 			buf.WriteString("\\e")
 			continue
-		case int('-'):
+		case rune('-'):
 			buf.WriteByte('\\')
-		case int('.'):
+		case rune('.'):
 			if last == 0 || unicode.IsSpace(last) {
 				buf.WriteString("\\&")
 			}
-		case int('\''):
+		case rune('\''):
 			if last == 0 || unicode.IsSpace(last) {
 				buf.WriteString("\\(fm")
-				last = int('\'')
+				last = rune('\'')
 				continue
 			}
 		}
-		buf.WriteRune(rune)
-		last = rune
+		buf.WriteRune(r)
+		last = r
 	}
 	return buf.Bytes()
 }

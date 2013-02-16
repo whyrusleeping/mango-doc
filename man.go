@@ -2,14 +2,14 @@ package main
 
 import (
 	"bytes"
-	"strings"
 	"fmt"
-	"time"
 	"go/ast"
 	"go/doc"
 	"go/token"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
 
 //BUG(jmf): Quotation marks are all wrong in postscript output.
@@ -30,10 +30,10 @@ type M struct {
 	overm                map[string][]interface{}
 	refs                 []string
 	pkg                  *ast.Package
-	docs                 *doc.PackageDoc
+	docs                 *doc.Package
 }
 
-func NewManPage(pkg *ast.Package, docs *doc.PackageDoc, overd []*section) *M {
+func NewManPage(pkg *ast.Package, docs *doc.Package, overd []*section) *M {
 	//break up the package document, extract a short description
 	dvec := unstring([]byte(docs.Doc))
 	var fs []byte //first sentence.
@@ -111,25 +111,25 @@ func grep_version(pkg *ast.Package) string {
 	return ""
 }
 
-func flatten(docs *doc.PackageDoc, extras []string) <-chan string {
+func flatten(docs *doc.Package, extras []string) <-chan string {
 	out := make(chan string)
 	var sub func(interface{})
 	sub = func(x interface{}) {
 		switch t := x.(type) {
-		case []*doc.ValueDoc:
+		case []*doc.Value:
 			for _, v := range t {
 				out <- v.Doc
 			}
-		case []*doc.FuncDoc:
+		case []*doc.Func:
 			for _, v := range t {
 				out <- v.Doc
 			}
-		case []*doc.TypeDoc:
+		case []*doc.Type:
 			for _, v := range t {
 				out <- v.Doc
 				sub(v.Consts)
 				sub(v.Vars)
-				sub(v.Factories)
+				sub(v.Funcs)
 				sub(v.Methods)
 			}
 		}
@@ -180,7 +180,7 @@ func (m *M) find_refs(extras []string) {
 }
 
 func (m *M) do_header(kind string) {
-	tm := time.LocalTime().Format("2006-01-02")
+	tm := time.Now().Format("2006-01-02")
 	version := m.version
 	if version == "" {
 		version = tm

@@ -104,15 +104,15 @@ package main
 
 import (
 	"flag"
-	"os"
-	"path"
-	"fmt"
-	"strings"
-	"io/ioutil"
-	"go/parser"
-	"go/token"
 	"go/ast"
 	"go/doc"
+	"go/parser"
+	"go/token"
+	"io/ioutil"
+	"log"
+	"os"
+	"path"
+	"strings"
 )
 
 var (
@@ -142,12 +142,11 @@ use -section.`)
 )
 
 func stderr(s interface{}) {
-	fmt.Fprintln(os.Stderr, s)
+	log.Println(s)
 }
 
 func fatal(msg interface{}) {
-	stderr(msg)
-	os.Exit(2)
+	log.Fatalln(msg)
 }
 
 func invalid_flag(s, nm string, flag *string) {
@@ -177,11 +176,31 @@ func usage(err interface{}) {
 var suff = strings.HasSuffix
 var pref = strings.HasPrefix
 
-func filter(fi *os.FileInfo) bool {
-	notdir := !fi.IsDirectory()
-	n := fi.Name
+func filter(fi os.FileInfo) bool {
+	notdir := !fi.IsDir()
+	n := fi.Name()
 	gofile := suff(n, ".go") && !suff(n, "_test.go")
 	return notdir && gofile
+}
+
+func ParseFiles(fset *token.FileSet, files []string, mode parser.Mode) (pkgs map[string]*ast.Package, first error) {
+	for _, file := range files {
+		if src, err := parser.ParseFile(fset, file, nil, mode); err != nil {
+			nm := src.Name.Name
+			pkg, found := pkgs[nm]
+			if !found {
+				pkg = &ast.Package{
+					Name:  nm,
+					Files: map[string]*ast.File{},
+				}
+				pkgs[nm] = pkg
+			}
+			pkg.Files[file] = src
+		} else {
+			return nil, err
+		}
+	}
+	return
 }
 
 func clean(pwd, p string) string {
@@ -221,6 +240,7 @@ func csv_files(in string, disallow bool) (out []*pair) {
 
 //Usage: %name %flags [package-directory|package-files]
 func main() {
+	log.SetFlags(0)
 	flag.Parse()
 
 	if *help {
@@ -257,7 +277,7 @@ func main() {
 	//parse package(s)
 	fs := token.NewFileSet()
 	if len(files) > 0 {
-		pkgs, err = parser.ParseFiles(fs, files, parser.ParseComments)
+		pkgs, err = ParseFiles(fs, files, parser.ParseComments)
 	} else {
 		pkgs, err = parser.ParseDir(fs, dir, filter, parser.ParseComments)
 	}
@@ -268,7 +288,7 @@ func main() {
 	//Check for a documentation package
 	var xdoc string
 	if d, ok := pkgs["documentation"]; ok {
-		xdoc = doc.NewPackageDoc(d, "").Doc
+		xdoc = doc.New(d, "", 0).Doc
 		delete(pkgs, "documentation")
 	}
 
@@ -304,8 +324,7 @@ func main() {
 	var overd []*section
 	if *Sections != "" {
 		for _, pair := range csv_files(*Sections, true) {
-			overd = append(overd,
-				&section{pair.key, unstring(pair.value)})
+			overd = append(overd, &section{pair.key, unstring(pair.value)})
 		}
 	}
 	if *Includes != "" {
@@ -315,7 +334,7 @@ func main() {
 	}
 
 	//Build and dump docs
-	docs := doc.NewPackageDoc(pkg, "")
+	docs := doc.New(pkg, "", doc.AllDecls|doc.AllMethods)
 	//hack around there being a documentation package, part 2
 	if xdoc != "" {
 		docs.Doc = xdoc
